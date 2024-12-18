@@ -1,3 +1,30 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import requests
+import traceback
+import time
+
+# Inisialisasi Flask app
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)  # Mengaktifkan CORS global
+
+# Fungsi untuk mencoba request API dengan retry mekanisme
+def fetch_api_with_retry(api_url, payload, headers, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(api_url, json=payload, headers=headers, timeout=10)
+            print(f"Attempt {attempt + 1}: API Status Code {response.status_code}")
+            if response.status_code == 200:
+                return response
+        except requests.exceptions.RequestException as e:
+            print(f"Attempt {attempt + 1}: Request failed with error: {str(e)}")
+        time.sleep(2)  # Tunggu 2 detik sebelum mencoba lagi
+    return None
+
+@app.route('/')
+def index():
+    return "Backend for Xiaohongshu Video Downloader using shuiyinla.com API is running."
+
 import logging
 
 # Tambahkan konfigurasi logging
