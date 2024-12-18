@@ -41,10 +41,10 @@ def download_video():
         # Konfigurasi yt-dlp
         ydl_opts = {
             'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
-            'format': 'bestvideo+bestaudio/best',
+            'format': 'mp4',  # Meminta format MP4
             'merge_output_format': 'mp4',
             'socket_timeout': 30,
-            'verbose': True  # Tambahkan log lebih detail
+            'verbose': True
         }
 
         # Proses download video
@@ -66,10 +66,9 @@ def download_video():
         return jsonify({"file": normalized_name, "message": "Download successful!"}), 200
 
     except yt_dlp.utils.DownloadError as e:
-        # Tangkap error spesifik yt-dlp
-        return jsonify({"error": f"Download failed: {str(e)}"}), 500
+        print("Download Error:", str(e))  # Cetak error ke log server
+        return jsonify({"error": "Failed to download video. The video format might not be available."}), 500
     except Exception as e:
-        # Tangkap semua error lainnya
         print("Error:", traceback.format_exc())  # Cetak log error detail di Railway
         return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
 
