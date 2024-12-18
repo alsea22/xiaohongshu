@@ -4,7 +4,8 @@ import yt_dlp
 import os
 
 app = Flask(__name__)
-CORS(app, origins=["https://bsracegank.online"])  # Izinkan domain frontend
+# Mengizinkan semua metode dan preflight OPTIONS request
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 DOWNLOAD_FOLDER = 'downloads/'
 
@@ -25,18 +26,4 @@ def download_video():
 
     try:
         ydl_opts = {
-            'outtmpl': DOWNLOAD_FOLDER + '%(title)s.%(ext)s',
-            'format': 'bestvideo+bestaudio/best',
-            'merge_output_format': 'mp4',
-        }
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_url, download=True)
-            file_name = ydl.prepare_filename(info)
-
-        return jsonify({"file": file_name, "message": "Download successful!"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+            '
