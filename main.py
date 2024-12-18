@@ -6,9 +6,9 @@ import time
 
 # Inisialisasi Flask app
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})  # Mengaktifkan CORS agar backend bisa diakses dari frontend
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)  # Mengaktifkan CORS global
 
-# Fungsi untuk mencoba request API dengan mekanisme retry
+# Fungsi untuk mencoba request API dengan retry mekanisme
 def fetch_api_with_retry(api_url, payload, headers, max_retries=3):
     for attempt in range(max_retries):
         try:
@@ -28,6 +28,9 @@ def index():
 @app.route('/download', methods=['POST'])
 def download_video():
     try:
+        # Aktifkan CORS untuk route ini
+        CORS(app, resources={r"/download": {"origins": "*"}})
+
         # Ambil URL video dari request JSON
         data = request.get_json()
         video_url = data.get('video_url')
@@ -36,9 +39,9 @@ def download_video():
         if not video_url:
             return jsonify({"error": "No URL provided. Please include a valid video URL."}), 400
 
-        # Endpoint API shuiyinla.com (ganti sesuai dokumentasi resmi)
-        api_url = "https://shuiyinla.com/api/xiaohongshu"  # Asumsi endpoint API
-        payload = {"url": video_url}  # Data dikirim ke API
+        # Endpoint API shuiyinla.com
+        api_url = "https://shuiyinla.com/api/xiaohongshu"  # Ganti jika ada dokumentasi resmi
+        payload = {"url": video_url}
         headers = {
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -49,7 +52,7 @@ def download_video():
         # Kirim request dengan retry mekanisme
         response = fetch_api_with_retry(api_url, payload, headers)
 
-        # Jika respons gagal setelah retry
+        # Jika respons gagal
         if not response:
             return jsonify({
                 "error": "Failed to fetch video data after multiple attempts.",
