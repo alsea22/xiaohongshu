@@ -1,10 +1,11 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS  # Mengaktifkan CORS untuk semua domain
-import requests  # Untuk mengirim request HTTP ke API pihak ketiga
-import traceback  # Untuk mencetak log error yang detail
+from flask_cors import CORS
+import requests  # Untuk request ke API pihak ketiga
+import traceback  # Untuk mencetak log error detail
 
+# Inisialisasi Flask app
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})  # Aktifkan CORS agar backend bisa diakses dari frontend
+CORS(app, resources={r"/*": {"origins": "*"}})  # Mengaktifkan CORS agar bisa diakses dari frontend
 
 @app.route('/')
 def index():
@@ -17,21 +18,22 @@ def download_video():
         data = request.get_json()
         video_url = data.get('video_url')
 
+        # Validasi jika URL kosong
         if not video_url:
             return jsonify({"error": "No URL provided. Please include a valid video URL."}), 400
 
         # Endpoint API pihak ketiga
-        api_url = "https://dlpanda.com/id/xiaohongshu"  # Ganti URL jika API membutuhkan endpoint khusus
-        payload = {"url": video_url}  # Kirim URL video dalam request
+        api_url = "https://dlpanda.com/id/xiaohongshu"  # URL API dlpanda.com
+        payload = {"url": video_url}  # Data yang dikirim ke API
         headers = {
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
 
-        # Kirim request ke API pihak ketiga
+        # Kirim request ke API dlpanda.com
         response = requests.post(api_url, json=payload, headers=headers)
 
-        # Debug respons API (untuk Railway Logs)
+        # Log respons API untuk debugging
         print("API Status Code:", response.status_code)
         print("API Response:", response.text)
 
@@ -43,26 +45,30 @@ def download_video():
                 "response": response.text
             }), 500
 
-        # Parse respons API
-        api_response = response.json()
+        # Parse respons JSON dari API
+        try:
+            api_response = response.json()
+        except ValueError:
+            return jsonify({"error": "Failed to parse API response as JSON."}), 500
 
-        # Pastikan respons API memiliki link download
-        if "download_url" not in api_response:
+        # Validasi apakah API memberikan link download
+        download_url = api_response.get("download_url")
+        if not download_url:
             return jsonify({"error": "No download link found in API response."}), 500
 
-        # Ambil link download dari API
-        download_url = api_response["download_url"]
-
-        # Kirim link download ke frontend
+        # Jika berhasil, kirim link download ke frontend
         return jsonify({
             "download_url": download_url,
             "message": "Video link retrieved successfully!"
         }), 200
 
     except Exception as e:
-        # Tangani error dan cetak log error detail ke Railway
+        # Log error yang detail ke server
         print("Error:", traceback.format_exc())
-        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
+        return jsonify({
+            "error": "An unexpected error occurred.",
+            "details": str(e)
+        }), 500
 
 if __name__ == '__main__':
     import os
