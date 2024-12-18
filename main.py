@@ -1,8 +1,11 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS  # Tambahkan Flask-CORS
 import yt_dlp
 import os
 
 app = Flask(__name__)
+CORS(app)  # Izinkan semua domain mengakses backend
+
 DOWNLOAD_FOLDER = 'downloads/'
 
 if not os.path.exists(DOWNLOAD_FOLDER):
@@ -33,4 +36,7 @@ def download_video():
 
         return jsonify({"file": file_name, "message": "Download successful!"})
     except Exception as e:
-        return jsonify({"error": "An error occurred while processing the video."})
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)
