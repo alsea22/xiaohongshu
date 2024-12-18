@@ -1,21 +1,18 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import requests
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 import traceback
+import time
+import os
 
-# Inisialisasi Flask app
 app = Flask(__name__)
-CORS(app, supports_credentials=True)  # Aktifkan CORS untuk semua route dan semua origin
+CORS(app, resources={r"/*": {"origins": "*"}})
 
-@app.after_request
-def after_request(response):
-    """
-    Tambahkan header CORS ke semua respons.
-    """
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    return response
+# Path ke ChromeDriver (sesuaikan path di server Anda)
+CHROMEDRIVER_PATH = "./chromedriver"
 
 @app.route('/')
 def index():
@@ -24,60 +21,51 @@ def index():
 @app.route('/download', methods=['POST'])
 def download_video():
     try:
-        # Ambil URL video dari request JSON
+        # Ambil URL video dari request
         data = request.get_json()
-        video_url = data.get('video_url')
+        video_url = data.get("video_url")
 
-        # Validasi input URL
         if not video_url:
-            return jsonify({"error": "No URL provided. Please include a valid video URL."}), 400
+            return jsonify({"error": "No URL provided."}), 400
 
-        # API tujuan (contoh endpoint API pihak ketiga)
-        api_url = "https://shuiyinla.com/api/xiaohongshu"
-        payload = {"url": video_url}
-        headers = {
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0",
-            "Referer": "https://shuiyinla.com/",
-            "Origin": "https://shuiyinla.com/"
-        }
+        # Konfigurasi Selenium Chrome
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")  # Mode tanpa GUI
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
 
-        # Kirim permintaan ke API pihak ketiga
-        response = requests.post(api_url, json=payload, headers=headers, timeout=10)
+        # Inisialisasi WebDriver
+        service = Service(CHROMEDRIVER_PATH)
+        driver = webdriver.Chrome(service=service, options=chrome_options)
 
-        # Jika API tidak memberikan respons yang valid
-        if response.status_code != 200:
-            return jsonify({
-                "error": "Failed to fetch video data from API.",
-                "status_code": response.status_code,
-                "response": response.text
-            }), 500
-
-        # Parsing respons JSON dari API
         try:
-            api_response = response.json()
-        except ValueError:
-            return jsonify({"error": "Failed to parse API response as JSON."}), 500
+            # Buka URL Xiaohongshu
+            driver.get(video_url)
+            time.sleep(5)  # Tunggu halaman dimuat
 
-        # Ambil link download dari respons API
-        download_url = api_response.get("download_url")
-        if not download_url:
-            return jsonify({"error": "No download link found in API response."}), 500
+            # Cari elemen video (ganti selector ini jika tidak cocok)
+            video_element = driver.find_element(By.TAG_NAME, "video")
+            video_src = video_element.get_attribute("src")
 
-        # Kirim kembali link download ke frontend
-        return jsonify({
-            "download_url": download_url,
-            "message": "Video link retrieved successfully!"
-        }), 200
+            if not video_src:
+                return jsonify({"error": "Failed to extract video source URL."}), 500
+
+            # Kirim link video kembali ke frontend
+            return jsonify({
+                "download_url": video_src,
+                "message": "Video link extracted successfully!"
+            }), 200
+
+        except Exception as e:
+            print("Scraping Error:", traceback.format_exc())
+            return jsonify({"error": "Failed to scrape video URL.", "details": str(e)}), 500
+
+        finally:
+            driver.quit()
 
     except Exception as e:
         print("Error:", traceback.format_exc())
-        return jsonify({
-            "error": "An unexpected error occurred.",
-            "details": str(e)
-        }), 500
+        return jsonify({"error": "An unexpected error occurred.", "details": str(e)}), 500
 
 if __name__ == '__main__':
-    import os
-    port = int(os.environ.get("PORT", 8080))  # Membaca PORT dari environment variable
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=8080, debug=True)
