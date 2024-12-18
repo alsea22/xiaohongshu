@@ -1,3 +1,15 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import requests  # Untuk mengirim permintaan HTTP ke API pihak ketiga
+import traceback
+
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}})  # Aktifkan CORS untuk semua domain
+
+@app.route('/')
+def index():
+    return "Backend for Xiaohongshu Video Downloader using dlpanda.com API is running."
+
 @app.route('/download', methods=['POST'])
 def download_video():
     try:
@@ -8,44 +20,31 @@ def download_video():
         if not video_url:
             return jsonify({"error": "No URL provided."}), 400
 
-        # Konfigurasi yt-dlp
-        ydl_opts = {
-            'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
-            'format': 'mp4/bestvideo+bestaudio/best',  # Coba format MP4, atau best yang tersedia
-            'merge_output_format': 'mp4',
-            'socket_timeout': 30,
-            'verbose': True
-        }
+        # Endpoint API dlpanda.com
+        api_url = "https://dlpanda.com/id/xiaohongshu"  # Gantilah jika ada endpoint khusus
+        payload = {"url": video_url}  # Kirim URL video ke API
+        headers = {"Content-Type": "application/json"}
 
-        # Proses download video
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_url, download=True)
-            file_name = ydl.prepare_filename(info)
+        # Kirim request ke API dlpanda.com
+        response = requests.post(api_url, json=payload, headers=headers)
 
-            # Debug: Cek apakah file benar-benar ada
-            if not os.path.exists(file_name):
-                print("File not found:", file_name)
-                return jsonify({"error": "Failed to download the video. File not created."}), 500
+        if response.status_code != 200:
+            return jsonify({"error": "Failed to fetch video data from API.", "status_code": response.status_code}), 500
 
-            # Debug: Baca isi file jika bukan MP4
-            if not file_name.endswith(".mp4"):
-                with open(file_name, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    print("File Content Debug:", content[:500])  # Cetak sebagian isi file
+        # Parse respons dari API
+        api_response = response.json()
 
-            # Normalisasi nama file
-            base_name = os.path.basename(file_name)
-            normalized_name = normalize_filename(base_name)
-            normalized_path = os.path.join(DOWNLOAD_FOLDER, normalized_name)
+        # Cek apakah API mengembalikan link download
+        if "download_url" not in api_response:
+            return jsonify({"error": "No download link found in API response."}), 500
 
-            # Rename file agar aman
-            os.rename(file_name, normalized_path)
+        # Respons berhasil
+        download_url = api_response["download_url"]
+        return jsonify({"download_url": download_url, "message": "Video link retrieved successfully!"}), 200
 
-        return jsonify({"file": normalized_name, "message": "Download successful!"}), 200
-
-    except yt_dlp.utils.DownloadError as e:
-        print("Download Error:", str(e))  # Log error dari yt-dlp
-        return jsonify({"error": "Failed to download video. The video format might not be available."}), 500
     except Exception as e:
-        print("Error:", traceback.format_exc())  # Log error lainnya
+        print("Error:", traceback.format_exc())  # Cetak error detail ke log
         return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)
