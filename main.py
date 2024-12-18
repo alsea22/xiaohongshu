@@ -1,33 +1,3 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS  # Untuk mengaktifkan CORS
-import yt_dlp  # Library untuk mendownload video
-import os
-import traceback  # Untuk mencetak error yang detail
-import unicodedata  # Untuk normalisasi nama file
-import re  # Untuk membersihkan karakter khusus dari nama file
-
-# Update yt-dlp ke versi terbaru setiap kali aplikasi berjalan
-os.system("pip install --upgrade yt-dlp")
-
-# Inisialisasi Flask app
-app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})  # Aktifkan CORS untuk semua domain
-
-# Folder penyimpanan hasil download
-DOWNLOAD_FOLDER = 'downloads/'
-if not os.path.exists(DOWNLOAD_FOLDER):
-    os.makedirs(DOWNLOAD_FOLDER)
-
-# Fungsi untuk membersihkan nama file
-def normalize_filename(name):
-    name = unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode('ascii')
-    name = re.sub(r'[^\w\s.-]', '', name)
-    return name
-
-@app.route('/')
-def index():
-    return "Backend for Xiaohongshu Video Downloader is running."
-
 @app.route('/download', methods=['POST'])
 def download_video():
     try:
@@ -41,7 +11,7 @@ def download_video():
         # Konfigurasi yt-dlp
         ydl_opts = {
             'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
-            'format': 'mp4',  # Meminta format MP4
+            'format': 'mp4/bestvideo+bestaudio/best',  # Coba format MP4, atau best yang tersedia
             'merge_output_format': 'mp4',
             'socket_timeout': 30,
             'verbose': True
@@ -52,25 +22,30 @@ def download_video():
             info = ydl.extract_info(video_url, download=True)
             file_name = ydl.prepare_filename(info)
 
+            # Debug: Cek apakah file benar-benar ada
+            if not os.path.exists(file_name):
+                print("File not found:", file_name)
+                return jsonify({"error": "Failed to download the video. File not created."}), 500
+
+            # Debug: Baca isi file jika bukan MP4
+            if not file_name.endswith(".mp4"):
+                with open(file_name, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    print("File Content Debug:", content[:500])  # Cetak sebagian isi file
+
             # Normalisasi nama file
             base_name = os.path.basename(file_name)
             normalized_name = normalize_filename(base_name)
             normalized_path = os.path.join(DOWNLOAD_FOLDER, normalized_name)
 
-            # Rename file agar aman jika ditemukan
-            if os.path.exists(file_name):
-                os.rename(file_name, normalized_path)
-            else:
-                return jsonify({"error": "File not found after download."}), 500
+            # Rename file agar aman
+            os.rename(file_name, normalized_path)
 
         return jsonify({"file": normalized_name, "message": "Download successful!"}), 200
 
     except yt_dlp.utils.DownloadError as e:
-        print("Download Error:", str(e))  # Cetak error ke log server
+        print("Download Error:", str(e))  # Log error dari yt-dlp
         return jsonify({"error": "Failed to download video. The video format might not be available."}), 500
     except Exception as e:
-        print("Error:", traceback.format_exc())  # Cetak log error detail di Railway
+        print("Error:", traceback.format_exc())  # Log error lainnya
         return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
