@@ -33,9 +33,23 @@ def download_video():
         }
 
         # Download video menggunakan yt-dlp
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_d
+            DL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=True)
             file_name = ydl.prepare_filename(info)
+            # Normalisasi nama file agar hanya berisi karakter ASCII
+            def normalize_filename(name):
+                name = unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode('ascii')
+                name = re.sub(r'[^\w\s.-]', '', name)
+                return name
+
+            base_name = os.path.basename(file_name)
+            normalized_name = normalize_filename(base_name)
+            normalized_path = os.path.join(DOWNLOAD_FOLDER, normalized_name)
+
+            # Rename file jika diperlukan
+            if os.path.exists(file_name):
+                os.rename(file_name, normalized_path)
 
         return jsonify({"file": file_name, "message": "Download successful!"}), 200
 
