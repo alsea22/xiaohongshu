@@ -33,4 +33,4 @@ def download_video():
 
         return jsonify({"file": file_name, "message": "Download successful!"})
     except Exception as e:
-        return jsonify({"error":
+        return jsonify({"error": "An error occurred while processing the video."})
